@@ -1,5 +1,4 @@
 # Custom Nginx with HTTP/3 (QUIC) and Brotli support
-# Using Alpine's system OpenSSL for faster builds
 # Based on Alpine Linux for minimal size
 
 FROM alpine:3.22 AS builder
@@ -8,8 +7,13 @@ FROM alpine:3.22 AS builder
 ENV NGINX_VERSION=1.29.2
 ENV BROTLI_VERSION=1.0.0rc
 ENV HEADERS_MORE_VERSION=0.39
+ENV OPENSSL_VERSION=3.5.4
 
-# Install build dependencies including system OpenSSL development libraries
+# Build configuration - limit CPU cores for compilation (adjust as needed)
+# Set to 2 to use 2 cores, or use $(nproc) for all available cores
+ENV BUILD_CORES=2
+
+# Install build dependencies
 RUN apk add --no-cache \
     gcc \
     g++ \
@@ -19,13 +23,24 @@ RUN apk add --no-cache \
     perl-dev \
     pcre-dev \
     zlib-dev \
-    openssl-dev \
     linux-headers \
     curl \
     git
 
 # Create build directory
 WORKDIR /build
+
+# Download and build OpenSSL 3.5.4 (with QUIC support)
+# Note: OpenSSL 3.x has QUIC support built-in, no special flags needed
+RUN curl -L https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | tar xz && \
+    cd openssl-${OPENSSL_VERSION} && \
+    ./config --prefix=/build/openssl \
+        --openssldir=/etc/ssl \
+        --libdir=lib \
+        enable-ktls \
+        no-tests && \
+    make -j${BUILD_CORES} && \
+    make install_sw
 
 # Clone Brotli module
 RUN git clone --depth=1 --branch=v${BROTLI_VERSION} https://github.com/google/ngx_brotli.git && \
@@ -36,7 +51,6 @@ RUN git clone --depth=1 --branch=v${BROTLI_VERSION} https://github.com/google/ng
 RUN git clone --depth=1 --branch=v${HEADERS_MORE_VERSION} https://github.com/openresty/headers-more-nginx-module.git
 
 # Download, extract and build Nginx with HTTP/3 and Brotli
-# Using system OpenSSL (Alpine 3.22 ships with OpenSSL 3.3.x which has QUIC support)
 RUN curl -L https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz | tar xz && \
     cd nginx-${NGINX_VERSION} && \
     ./configure \
@@ -80,20 +94,21 @@ RUN curl -L https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz | tar xz &&
     --with-stream_realip_module \
     --with-stream_ssl_module \
     --with-stream_ssl_preread_module \
-    --with-cc-opt="-O3 -fstack-protector-strong" \
+    --with-openssl=/build/openssl-3.5.4 \
+    --with-cc-opt="-I/build/openssl/include -O3 -fstack-protector-strong -Wno-error" \
+    --with-ld-opt="-L/build/openssl/lib -Wl,-rpath,/usr/local/lib" \
     --add-module=/build/ngx_brotli \
     --add-module=/build/headers-more-nginx-module && \
-    make -j$(nproc) && \
+    make -j${BUILD_CORES} && \
     make install
 
 # Final stage - minimal runtime image
 FROM alpine:3.22
 
-# Install runtime dependencies including OpenSSL libraries
+# Install runtime dependencies only
 RUN apk add --no-cache \
     pcre \
     zlib \
-    openssl \
     ca-certificates \
     tzdata
 
@@ -107,6 +122,9 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy custom error pages
 COPY error-pages /usr/share/nginx/html/error-pages
+
+# Copy OpenSSL libraries
+COPY --from=builder /build/openssl/lib /usr/local/lib
 
 # Create nginx user and required directories
 RUN addgroup -g 101 -S nginx && \
