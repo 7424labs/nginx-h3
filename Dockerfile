@@ -105,9 +105,6 @@ COPY --from=builder /etc/nginx /etc/nginx
 # Copy custom main nginx.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy custom error pages
-COPY error-pages /usr/share/nginx/html/error-pages
-
 # Create nginx user and required directories
 RUN addgroup -g 101 -S nginx && \
     adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx && \
