@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build on GitHub Runner
 
 on:
   push:
@@ -19,6 +19,7 @@ env:
 
 jobs:
   build-and-push:
+    name: Build (ubuntu-latest)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,6 +29,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show runner info
+        run: |
+          echo "## Runner Information (GitHub)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **OS**: $(uname -s)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Architecture**: $(uname -m)" >> $GITHUB_STEP_SUMMARY
+          echo "- **CPU Cores**: $(nproc)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Memory**: $(free -h | grep Mem | awk '{print $2}')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Disk Space**: $(df -h / | tail -1 | awk '{print $4}' ) available" >> $GITHUB_STEP_SUMMARY
+          echo "- **Kernel**: $(uname -r)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Detailed Info" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          lsb_release -a 2>/dev/null || cat /etc/os-release
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -74,7 +91,7 @@ jobs:
       - name: Generate build summary
         if: github.event_name != 'pull_request'
         run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Summary (GitHub Runner)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Image Details" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry**: \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
