@@ -80,7 +80,7 @@ RUN curl -L https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz | tar xz &&
     --with-stream_realip_module \
     --with-stream_ssl_module \
     --with-stream_ssl_preread_module \
-    --with-cc-opt="-O3 -fstack-protector-strong" \
+    --with-cc-opt="-O3 -fstack-protector-strong -Wno-error" \
     --add-module=/build/ngx_brotli \
     --add-module=/build/headers-more-nginx-module && \
     make -j$(nproc) && \
