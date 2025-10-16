@@ -6,27 +6,50 @@ Nginx Docker image with HTTP/3 (QUIC), Brotli compression, and additional module
 
 ## Usage
 
+> **Important:** This image does not include a default server configuration. You must provide your own `example.com.conf` file. See [example/example.com.conf](example/example.com.conf) for a sample configuration.
+
 ```bash
-# Pull and run
-docker pull ghcr.io/YOUR_USERNAME/nginx-h3:latest
-docker run -d --name nginx-h3 -p 80:80 -p 443:443 -p 443:443/udp ghcr.io/YOUR_USERNAME/nginx-h3:latest
+# Pull image
+docker pull ghcr.io/7424labs/nginx-h3:latest
+
+# Run with your configuration
+docker run -d --name nginx-h3 \
+  -p 80:80 -p 443:443 -p 443:443/udp \
+  -v $(pwd)/example.com.conf:/etc/nginx/conf.d/example.com.conf:ro \
+  -v $(pwd)/certs:/etc/nginx/ssl:ro \
+  ghcr.io/7424labs/nginx-h3:latest
 
 # Build locally
 docker build -t nginx-h3 .
-
-# Build with custom CPU cores
-docker build --build-arg BUILD_CORES=4 -t nginx-h3 .
 ```
 
-> **Note:** Port 443/udp is required for HTTP/3 (QUIC) support.
+### Firewall Configuration
+
+Ensure the following ports are open:
+
+- **80/TCP** - HTTP traffic
+- **443/TCP** - HTTPS traffic (HTTP/2)
+- **443/UDP** - HTTP/3 (QUIC) traffic
+
+```bash
+# Example: UFW firewall rules
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 443/udp
+
+# Example: iptables rules
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A INPUT -p udp --dport 443 -j ACCEPT
+```
 
 ## Configuration
 
 Mount volumes for custom configuration:
 
 ```bash
-# Custom nginx.conf
--v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro
+# Server configuration
+-v $(pwd)/example.com.conf:/etc/nginx/conf.d/example.com.conf:ro
 
 # SSL certificates (expected at /etc/nginx/ssl/cert.pem and /etc/nginx/ssl/key.pem)
 -v $(pwd)/certs:/etc/nginx/ssl:ro
@@ -56,7 +79,7 @@ curl -I https://your-domain.com
 
 Automatic builds on push to main/master with multi-arch support (amd64/arm64). Enable "Read and write permissions" in repository Actions settings.
 
-**Available tags:** `latest`, `main`, `master`, `v1.0.0`, `sha-<commit>`
+**Available tags:** `latest`, `1.29.2`, `1.29`, `1`
 
 ## Deployment Examples
 
@@ -66,7 +89,7 @@ Automatic builds on push to main/master with multi-arch support (amd64/arm64). E
 ```yaml
 services:
   nginx:
-    image: ghcr.io/YOUR_USERNAME/nginx-h3:latest
+    image: ghcr.io/7424labs/nginx-h3:latest
     ports:
       - "80:80"
       - "443:443"
@@ -99,7 +122,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: ghcr.io/YOUR_USERNAME/nginx-h3:latest
+        image: ghcr.io/7424labs/nginx-h3:latest
         ports:
         - {containerPort: 80, protocol: TCP}
         - {containerPort: 443, protocol: TCP}
@@ -130,10 +153,10 @@ spec:
 
 ```bash
 # Check version and modules
-docker run --rm ghcr.io/YOUR_USERNAME/nginx-h3:latest nginx -V
+docker run --rm ghcr.io/7424labs/nginx-h3:latest nginx -V
 
 # Verify HTTP/3 support
-docker run --rm ghcr.io/YOUR_USERNAME/nginx-h3:latest nginx -V 2>&1 | grep http_v3
+docker run --rm ghcr.io/7424labs/nginx-h3:latest nginx -V 2>&1 | grep http_v3
 
 # View logs
 docker logs nginx-h3
